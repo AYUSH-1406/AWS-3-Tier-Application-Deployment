@@ -1,4 +1,4 @@
-name: CI-CD to EKS (Multi-Stage)
+name: CI-CD to EKS (Secure & Approved)
 
 on:
   push:
@@ -9,17 +9,16 @@ env:
   AWS_REGION: ap-south-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
 
-# ---------------------------
+# --------------------------------------------------
 # JOB 1: Build & Push app-tier
-# ---------------------------
+# --------------------------------------------------
 jobs:
   build-app-tier:
     name: Build & Push app-tier
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -33,22 +32,21 @@ jobs:
         aws ecr get-login-password --region $AWS_REGION |
         docker login --username AWS --password-stdin $ECR_REGISTRY
 
-    - name: Build & Push app-tier image
+    - name: Build & Push app-tier
       run: |
         docker build -t app-tier ./application-code/app-tier
         docker tag app-tier:latest $ECR_REGISTRY/app-tier:latest
         docker push $ECR_REGISTRY/app-tier:latest
 
-# ---------------------------
+# --------------------------------------------------
 # JOB 2: Build & Push web-tier
-# ---------------------------
+# --------------------------------------------------
   build-web-tier:
     name: Build & Push web-tier
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -62,17 +60,17 @@ jobs:
         aws ecr get-login-password --region $AWS_REGION |
         docker login --username AWS --password-stdin $ECR_REGISTRY
 
-    - name: Build & Push web-tier image
+    - name: Build & Push web-tier
       run: |
         docker build -t web-tier ./application-code/web-tier
         docker tag web-tier:latest $ECR_REGISTRY/web-tier:latest
         docker push $ECR_REGISTRY/web-tier:latest
 
-# ---------------------------
-# JOB 3: Deploy to EKS
-# ---------------------------
-  deploy-to-eks:
-    name: Deploy to EKS
+# --------------------------------------------------
+# JOB 3: Trivy Security Scan
+# --------------------------------------------------
+  trivy-scan:
+    name: Trivy Image Scan
     runs-on: ubuntu-latest
 
     needs:
@@ -80,8 +78,47 @@ jobs:
       - build-web-tier
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Install Trivy
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget
+        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.50.0_Linux-64bit.deb
+
+    - name: Scan app-tier image
+      run: |
+        trivy image --exit-code 1 --severity CRITICAL,HIGH \
+        $ECR_REGISTRY/app-tier:latest
+
+    - name: Scan web-tier image
+      run: |
+        trivy image --exit-code 1 --severity CRITICAL,HIGH \
+        $ECR_REGISTRY/web-tier:latest
+
+# --------------------------------------------------
+# JOB 4: Manual Approval (Production Gate)
+# --------------------------------------------------
+  approval:
+    name: Await Manual Approval
+    needs: trivy-scan
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: Approval granted
+      run: echo "Deployment approved"
+
+# --------------------------------------------------
+# JOB 5: Deploy to EKS
+# --------------------------------------------------
+  deploy-to-eks:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+
+    needs: approval
+
+    steps:
+    - uses: actions/checkout@v4
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -96,7 +133,7 @@ jobs:
         --region $AWS_REGION \
         --name ${{ secrets.EKS_CLUSTER_NAME }}
 
-    - name: Rollout restart deployments
+    - name: Deploy with rolling update
       run: |
         kubectl rollout restart deployment app-tier -n three-tier
         kubectl rollout restart deployment web-tier -n three-tier
