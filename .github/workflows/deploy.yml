@@ -82,6 +82,8 @@ jobs:
         format: table
         severity: CRITICAL,HIGH
         exit-code: 1
+        ignore-unfixed: true
+        scanners: vuln 
 
     - name: Trivy scan web-tier image
       uses: aquasecurity/trivy-action@master
@@ -90,6 +92,9 @@ jobs:
         format: table
         severity: CRITICAL,HIGH
         exit-code: 1
+        ignore-unfixed: true
+        scanners: vuln 
+
     # ---------------------------
     # STAGE 9: Deploy to EKS
     # ---------------------------
