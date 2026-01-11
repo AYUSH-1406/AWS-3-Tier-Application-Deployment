@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-tier
+  namespace: three-tier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-tier
+  template:
+    metadata:
+      labels:
+        app: web-tier
+    spec:
+      containers:
+      - name: nginx
+        image: 203071037199.dkr.ecr.ap-south-1.amazonaws.com/web-tier:latest
+        ports:
+        - containerPort: 80

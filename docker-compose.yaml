@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: transactions
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./application-code/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app-tier:
+    build: ./application-code/app-tier
+    container_name: app-tier
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_USER: appuser
+      DB_PWD: apppassword
+      DB_DATABASE: transactions
+  
+
+  web-tier:
+    build: ./application-code/web-tier
+    container_name: web-tier
+    depends_on:
+      - app-tier
+    ports:
+      - "4500:80"
+
+volumes:
+  mysql_data:

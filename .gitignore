@@ -1,0 +1,59 @@
+############################
+# Terraform
+############################
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+terraform.tfvars
+.crash.log
+crash.log
+
+############################
+# Terraform Provider Binaries (CRITICAL)
+############################
+**/terraform-provider-*
+**/*.exe
+
+############################
+# Node.js
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+############################
+# Docker
+############################
+*.log
+*.pid
+docker-compose.override.yml
+
+############################
+# OS / Editor
+############################
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+############################
+# Build Artifacts
+############################
+dist/
+build/
+target/
+
+############################
+# Environment / Secrets
+############################
+.env
+.env.*
+*.pem
+*.key
+
+############################
+# Kubernetes
+############################
+*.kubeconfig

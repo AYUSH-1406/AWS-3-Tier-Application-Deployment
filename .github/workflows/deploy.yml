@@ -1,0 +1,62 @@
+name: CI-CD to EKS
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Stage 1: Checkout
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Stage 2: Unit Tests (Optional)
+    - name: Run backend tests
+      run: |
+        cd application-code/app-tier
+        npm install
+        npm test || true
+
+    # Stage 3: Configure AWS
+    - name: AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # Stage 4: Login to ECR
+    - name: Login ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+    # Stage 5: Build & Push app-tier
+    - name: Build & Push app-tier
+      run: |
+        docker build -t app-tier ./application-code/app-tier
+        docker tag app-tier:latest $ECR_REGISTRY/app-tier:latest
+        docker push $ECR_REGISTRY/app-tier:latest
+
+    # Stage 6: Build & Push web-tier
+    - name: Build & Push web-tier
+      run: |
+        docker build -t web-tier ./application-code/web-tier
+        docker tag web-tier:latest $ECR_REGISTRY/web-tier:latest
+        docker push $ECR_REGISTRY/web-tier:latest
+
+    # Stage 7: Deploy to EKS
+    - name: Deploy to EKS
+      run: |
+        aws eks update-kubeconfig --region $AWS_REGION \
+        --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+        kubectl rollout restart deployment app-tier -n three-tier
+        kubectl rollout restart deployment web-tier -n three-tier

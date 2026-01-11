@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-tier
+  namespace: three-tier
+spec:
+  selector:
+    app: web-tier
+  ports:
+    - port: 80
+      targetPort: 80
