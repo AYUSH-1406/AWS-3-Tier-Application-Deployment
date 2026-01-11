@@ -14,7 +14,7 @@ jobs:
     name: Build → Scan → Approve → Deploy
     runs-on: ubuntu-latest
 
-    # 🔐 Enables manual approval via GitHub Environment
+    # 🔐 Manual approval via GitHub Environment
     environment: production
 
     steps:
@@ -39,7 +39,7 @@ jobs:
     # ---------------------------
     - name: Login to Amazon ECR
       run: |
-        aws ecr get-login-password --region $AWS_REGION |
+        aws ecr get-login-password --region $AWS_REGION | \
         docker login --username AWS --password-stdin $ECR_REGISTRY
 
     # ---------------------------
@@ -47,7 +47,7 @@ jobs:
     # ---------------------------
     - name: Build app-tier image
       run: |
-        docker build -t app-tier ./application-code/app-tier
+        docker build -t app-tier:latest ./application-code/app-tier
 
     # ---------------------------
     # STAGE 5: Push app-tier image
@@ -62,7 +62,7 @@ jobs:
     # ---------------------------
     - name: Build web-tier image
       run: |
-        docker build -t web-tier ./application-code/web-tier
+        docker build -t web-tier:latest ./application-code/web-tier
 
     # ---------------------------
     # STAGE 7: Push web-tier image
@@ -72,31 +72,32 @@ jobs:
         docker tag web-tier:latest $ECR_REGISTRY/web-tier:latest
         docker push $ECR_REGISTRY/web-tier:latest
 
-    # ---------------------------
-    # STAGE 8: Trivy Security Scan (FIXED)
+     # ---------------------------
+    # STAGE 8: Trivy Security Scan (WORKING)
     # ---------------------------
     - name: Trivy scan app-tier image
-      uses: aquasecurity/trivy-action@v0.20.0
+      uses: aquasecurity/trivy-action@master
       with:
         image-ref: ${{ env.ECR_REGISTRY }}/app-tier:latest
+        format: table
         severity: CRITICAL,HIGH
         exit-code: 1
 
     - name: Trivy scan web-tier image
-      uses: aquasecurity/trivy-action@v0.20.0
+      uses: aquasecurity/trivy-action@master
       with:
         image-ref: ${{ env.ECR_REGISTRY }}/web-tier:latest
+        format: table
         severity: CRITICAL,HIGH
         exit-code: 1
-
     # ---------------------------
     # STAGE 9: Deploy to EKS
     # ---------------------------
     - name: Update kubeconfig
       run: |
         aws eks update-kubeconfig \
-        --region $AWS_REGION \
-        --name ${{ secrets.EKS_CLUSTER_NAME }}
+          --region $AWS_REGION \
+          --name ${{ secrets.EKS_CLUSTER_NAME }}
 
     - name: Deploy with rolling update
       run: |
